@@ -1,0 +1,1003 @@
+{
+  "name": "General Email Notification Branch",
+  "nodes": [
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        800,
+        224
+      ],
+      "id": "c8fe700c-b014-46be-ac08-3b11d2efdf8c",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "NlWNYVHMhIcnQQaq",
+          "name": "Google Gemini(PaLM) Api account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recruitment_message",
+              "name": "slack_message",
+              "value": "=📩 New Recruitment Email\n\n👤 Name: {{ $json.firstname }}{{ $json.lastname }}\n📞 Phone: {{ $json.output.properties.extracted_phone }}\n\n🎯 Intent: {{ $json.output.intent }}\n⚡ Priority:{{ $json.output.priority }}\n😊 Sentiment: {{ $json.output.sentiment }}\n\n📝 Summary:\n{{ $json.output.properties.summary }}\n✅ Recommended Action:\n{{ $json.output.recommended_action }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "806f70cb-0db0-4734-9543-fe79fe86776a",
+      "name": "Prepare Recruitment Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1520,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        96,
+        0
+      ],
+      "id": "978ae95e-cf6f-4aeb-aaa0-b55bd5216362",
+      "name": "Gmail - New Email",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2A9LxBFUjv876YwE",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dfd5bd94-f59c-4169-9f97-a45838f769ad",
+              "name": "From",
+              "value": "={{ $('Gmail - New Email').item.json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "315f0b62-1e50-44e4-878f-79f23dad262e",
+              "name": "Subject",
+              "value": "={{  $('Gmail - New Email').item.json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "47b1ec02-ef24-46bc-82e4-07b6bd9baba7",
+              "name": "snippet",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        -16
+      ],
+      "id": "246e9dc9-a09e-4199-ba09-d5a4399ff293",
+      "name": "Prepare Email Data"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.From }}\n{{ $json.Subject }}\n{{ $json.snippet }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an AI email classification and information extraction system.\n\nYour task is to analyze the incoming email and return exactly one structured result containing the following 8 fields:\n\n1. category\n2. intent\n3. priority\n4. sentiment\n5. summary\n6. recommended_action\n7. extracted_name\n8. extracted_company\n\n\nCATEGORY:\n\nThe category MUST be exactly one of:\n\n- Sales\n- Support\n- Recruitment\n- General\n\nUse:\n\n- Sales: product/service inquiries, pricing, demos, purchases, partnerships, or potential customers.\n- Support: technical problems, bugs, login issues, complaints, troubleshooting, or requests for help with an existing product/service.\n- Recruitment: jobs, candidates, interviews, hiring, resumes, or recruitment-related communication.\n- General: emails that do not clearly belong to Sales, Support, or Recruitment.\n\n\nPRIORITY:\n\nThe priority MUST be exactly one of:\n\n- High\n- Medium\n- Low\n\nUse:\n\n- High: urgent issue, critical problem, deadline-sensitive request, major service disruption, or immediate attention required.\n- Medium: normal business request that requires a response but is not urgent.\n- Low: informational, non-urgent, or low-impact communication.\n\n\nSENTIMENT:\n\nThe sentiment MUST be exactly one of:\n\n- Positive\n- Neutral\n- Negative\n\n\nINTENT:\n\nProvide a short phrase describing what the sender wants or needs.\n\nExamples:\n\n- Pricing inquiry\n- Technical support request\n- Job application\n- Product demo request\n- Interview invitation\n- Application follow-up\n\n\nSUMMARY:\n\nWrite a concise 1-2 sentence summary of the email.\n\nDo not invent information.\nDo not include information that is not present in the email.\n\n\nRECOMMENDED ACTION:\n\nGive one concrete next step that should be taken in response to the email.\n\nBase it only on the email content.\n\n\nEXTRACTED NAME:\n\nReturn the sender's name only if the name is explicitly written as text somewhere in the email.\n\nA name can appear in:\n\n- Greeting\n- Self-introduction\n- Sign-off\n- Signature\n- Email body\n\nExamples:\n\n\"Hi, I am Priya Shah\" → \"Priya Shah\"\n\"Regards, Priya Shah\" → \"Priya Shah\"\n\nDo NOT infer a person's name from their email address.\n\nIf no name is explicitly written in the email, return an empty string \"\".\n\n\nEXTRACTED COMPANY:\n\nReturn a company name only if it is explicitly written in the email text.\n\nDo NOT infer a company from:\n\n- email address\n- email domain\n- sender's name\n- context\n\nIf no company name is explicitly present, return an empty string \"\".\n\n\nCONSISTENCY RULE:\n\nThe extracted fields must contain exactly the information found in the email.\n\nIf the summary mentions a person's name or company, the corresponding extracted field MUST contain the same information.\n\nIf the corresponding information is not explicitly present in the email, do not mention it in the summary.\n\n\nOUTPUT RULES:\n\n- Return all 8 required fields.\n- Never omit a field.\n- Use an empty string \"\" for extracted_name or extracted_company when information is not explicitly present.\n- Use the exact capitalization specified above.\n- Do not add extra fields.\n- Do not return markdown.\n- Do not return explanations.\n- Do not return code fences.\n- Return only the structured output required by the schema."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "8f715a43-28be-4710-8c6a-f8e4e6200263",
+      "name": "AI Email Classifier & Extractor"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"category\": \"General\",\n  \"intent\": \"Meeting schedule confirmation\",\n  \"priority\": \"Medium\",\n  \"sentiment\": \"Neutral\",\n  \"summary\": \"Harshi is asking...\",\n  \"recommended_action\": \"Reply confirming Tuesday...\",\n  \"extracted_name\": \"Harshi\",\n  \"extracted_company\": \"\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        240
+      ],
+      "id": "5f1e1014-8bb5-4cb8-b8a2-174e91689439",
+      "name": "Email Classification Schema"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "Sales",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "db9a9efd-0658-4c36-a42d-b43b8075820d"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d44ec7f1-639f-417e-919e-62e08cb9fb58",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "Support",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "04c6d999-a0dd-48be-bb9c-9f900877868d",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "Recruitment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "252b9da5-23aa-414c-aef5-a01fb238caef",
+                    "leftValue": "={{ $json.output.category }}",
+                    "rightValue": "General",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1136,
+        -32
+      ],
+      "id": "1a151b6c-b95d-4579-b14c-dc0b95e0244f",
+      "name": "Route by Email Category"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0204f55a-6a72-4bba-a72a-0fbe4db757fa",
+              "name": "From",
+              "value": "={{ $('Gmail - New Email').item.json.From.match(/<([^>]+)>/)?.[1] || $('Gmail - New Email').item.json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "e3b1a2f0-0820-4c6f-b8fd-087ebe9ce74e",
+              "name": "To",
+              "value": "={{ $('Gmail - New Email').item.json.To.match(/<([^>]+)>/)?.[1] || $('Gmail - New Email').item.json.To }}   ",
+              "type": "string"
+            },
+            {
+              "id": "1710b483-95a4-4623-86ed-92c24a691772",
+              "name": "Subject",
+              "value": "={{ $('Gmail - New Email').item.json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "4386b87f-358f-483a-8eee-4fd5d2e47047",
+              "name": "snippet",
+              "value": "={{ $('Gmail - New Email').item.json.snippet }}",
+              "type": "string"
+            },
+            {
+              "id": "8af57ea6-d5a4-41a0-9ce2-582ea7f4b4d5",
+              "name": "output.category",
+              "value": "={{ $json.output.category }}",
+              "type": "string"
+            },
+            {
+              "id": "aaad686d-f268-4822-bf71-0f8c50089c30",
+              "name": "output.intent",
+              "value": "={{ $json.output.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "91f66000-69c9-4e0f-83b6-9326062967b6",
+              "name": "output.priority",
+              "value": "={{ $json.output.priority }}",
+              "type": "string"
+            },
+            {
+              "id": "ec1c6a28-3218-4d2d-b350-3d868b537b19",
+              "name": "output.sentiment",
+              "value": "={{ $json.output.sentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "2c1d7f7c-2ad3-4319-b310-212dd001e191",
+              "name": "output.recommended_action",
+              "value": "={{ $json.output.recommended_action }}",
+              "type": "string"
+            },
+            {
+              "id": "2a5f257d-0883-462a-bcd0-49c11b446402",
+              "name": "firstname",
+              "value": "={{ $json.output.extracted_name.split(\" \")[0]  }}",
+              "type": "string"
+            },
+            {
+              "id": "b1917108-7350-47f4-8420-455b59db63cb",
+              "name": "output.properties.extracted_phone",
+              "value": "={{ $('Code in JavaScript').item.json.phone_from_email }}",
+              "type": "string"
+            },
+            {
+              "id": "ee663a05-a09f-45ef-b871-4bf8fac8d4a0",
+              "name": "output.properties.extracted_company",
+              "value": "={{ $json.output.extracted_company }}",
+              "type": "string"
+            },
+            {
+              "id": "38c9560b-e8f1-4b92-8a4f-da276a0332de",
+              "name": "output.properties.summary",
+              "value": "={{ $json.output.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "31752aa9-e229-4a23-810e-59bbdff84528",
+              "name": "lastname",
+              "value": "={{ $json.output.extracted_name.split(\" \").slice(1).join(\" \") || null  }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1328,
+        -192
+      ],
+      "id": "548a6496-0383-46e0-8185-c12550c791c4",
+      "name": "Prepare Sales Contact"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0204f55a-6a72-4bba-a72a-0fbe4db757fa",
+              "name": "From",
+              "value": "={{ $('Gmail - New Email').item.json.From.match(/<([^>]+)>/)?.[1] || $('Gmail - New Email').item.json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "e3b1a2f0-0820-4c6f-b8fd-087ebe9ce74e",
+              "name": "To",
+              "value": "={{ $('Gmail - New Email').item.json.To.match(/<([^>]+)>/)?.[1] || $('Gmail - New Email').item.json.To }}   ",
+              "type": "string"
+            },
+            {
+              "id": "1710b483-95a4-4623-86ed-92c24a691772",
+              "name": "Subject",
+              "value": "={{ $('Gmail - New Email').item.json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "4386b87f-358f-483a-8eee-4fd5d2e47047",
+              "name": "snippet",
+              "value": "={{ $('Gmail - New Email').item.json.snippet }}",
+              "type": "string"
+            },
+            {
+              "id": "8af57ea6-d5a4-41a0-9ce2-582ea7f4b4d5",
+              "name": "output.category",
+              "value": "={{ $json.output.category }}",
+              "type": "string"
+            },
+            {
+              "id": "aaad686d-f268-4822-bf71-0f8c50089c30",
+              "name": "output.intent",
+              "value": "={{ $json.output.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "91f66000-69c9-4e0f-83b6-9326062967b6",
+              "name": "output.priority",
+              "value": "={{ $json.output.priority }}",
+              "type": "string"
+            },
+            {
+              "id": "ec1c6a28-3218-4d2d-b350-3d868b537b19",
+              "name": "output.sentiment",
+              "value": "={{ $json.output.sentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "2c1d7f7c-2ad3-4319-b310-212dd001e191",
+              "name": "output.recommended_action",
+              "value": "={{ $json.output.recommended_action }}",
+              "type": "string"
+            },
+            {
+              "id": "2a5f257d-0883-462a-bcd0-49c11b446402",
+              "name": "firstname",
+              "value": "={{$json.output.extracted_name.split(\" \")[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "b1917108-7350-47f4-8420-455b59db63cb",
+              "name": "output.properties.extracted_phone",
+              "value": "={{ $('Code in JavaScript').item.json.phone_from_email }}",
+              "type": "string"
+            },
+            {
+              "id": "ee663a05-a09f-45ef-b871-4bf8fac8d4a0",
+              "name": "output.properties.extracted_company",
+              "value": "={{ $json.output.extracted_company }}",
+              "type": "string"
+            },
+            {
+              "id": "38c9560b-e8f1-4b92-8a4f-da276a0332de",
+              "name": "output.properties.summary",
+              "value": "={{ $json.output.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "31752aa9-e229-4a23-810e-59bbdff84528",
+              "name": "lastname",
+              "value": "={{$json.output.extracted_name.split(\" \").slice(1).join(\" \") || null }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1328,
+        -32
+      ],
+      "id": "166b3dc3-6559-4df0-811a-3b3caadfcf22",
+      "name": "Prepare Support Ticket"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "email": "={{ $json.From }}",
+        "additionalFields": {
+          "companyName": "={{ $json.output.properties.extracted_company.type[0] }}",
+          "firstName": "={{ $json.firstname }}",
+          "lastName": "={{ $json.lastname }}",
+          "message": "={{ $json.output.recommended_action }}",
+          "phoneNumber": "={{ $json.output.properties.extracted_phone.description }}"
+        },
+        "options": {
+          "resolveData": false
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1536,
+        -192
+      ],
+      "id": "352641c9-1f8f-4a2d-bd77-3c683edc051b",
+      "name": "HubSpot - Create or Update Contact",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "mQaY9dH1aJQfaCHj",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "ticket",
+        "pipelineId": "0",
+        "stageId": "1",
+        "ticketName": "={{ $json.output.intent  }} - {{ $json.output.properties.extracted_company }}",
+        "additionalFields": {
+          "description": "={{ $json.output.properties.summary }}"
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1520,
+        -32
+      ],
+      "id": "a326d1a1-8458-45b5-99d4-0b798325ea92",
+      "name": "HubSpot - Create Support Ticket",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "mQaY9dH1aJQfaCHj",
+          "name": "HubSpot App Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0204f55a-6a72-4bba-a72a-0fbe4db757fa",
+              "name": "From",
+              "value": "={{ $('Gmail - New Email').item.json.From.match(/<([^>]+)>/)?.[1] || $('Gmail - New Email').item.json.From }}",
+              "type": "string"
+            },
+            {
+              "id": "e3b1a2f0-0820-4c6f-b8fd-087ebe9ce74e",
+              "name": "To",
+              "value": "={{ $('Gmail - New Email').item.json.To.match(/<([^>]+)>/)?.[1] || $('Gmail - New Email').item.json.To }}   ",
+              "type": "string"
+            },
+            {
+              "id": "1710b483-95a4-4623-86ed-92c24a691772",
+              "name": "Subject",
+              "value": "={{ $('Gmail - New Email').item.json.Subject }}",
+              "type": "string"
+            },
+            {
+              "id": "4386b87f-358f-483a-8eee-4fd5d2e47047",
+              "name": "snippet",
+              "value": "={{ $('Gmail - New Email').item.json.snippet }}",
+              "type": "string"
+            },
+            {
+              "id": "8af57ea6-d5a4-41a0-9ce2-582ea7f4b4d5",
+              "name": "output.category",
+              "value": "={{ $json.output.category }}",
+              "type": "string"
+            },
+            {
+              "id": "aaad686d-f268-4822-bf71-0f8c50089c30",
+              "name": "output.intent",
+              "value": "={{ $json.output.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "91f66000-69c9-4e0f-83b6-9326062967b6",
+              "name": "output.priority",
+              "value": "={{ $json.output.priority }}",
+              "type": "string"
+            },
+            {
+              "id": "ec1c6a28-3218-4d2d-b350-3d868b537b19",
+              "name": "output.sentiment",
+              "value": "={{ $json.output.sentiment }}",
+              "type": "string"
+            },
+            {
+              "id": "2c1d7f7c-2ad3-4319-b310-212dd001e191",
+              "name": "output.recommended_action",
+              "value": "={{ $json.output.recommended_action }}",
+              "type": "string"
+            },
+            {
+              "id": "2a5f257d-0883-462a-bcd0-49c11b446402",
+              "name": "firstname",
+              "value": "={{$json.output.extracted_name.split(\" \")[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "b1917108-7350-47f4-8420-455b59db63cb",
+              "name": "output.properties.extracted_phone",
+              "value": "={{ $('Code in JavaScript').item.json.phone_from_email }}",
+              "type": "string"
+            },
+            {
+              "id": "ee663a05-a09f-45ef-b871-4bf8fac8d4a0",
+              "name": "output.properties.extracted_company",
+              "value": "={{ $json.output.extracted_company }}",
+              "type": "string"
+            },
+            {
+              "id": "38c9560b-e8f1-4b92-8a4f-da276a0332de",
+              "name": "output.properties.summary",
+              "value": "={{ $json.output.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "31752aa9-e229-4a23-810e-59bbdff84528",
+              "name": "lastname",
+              "value": "={{$json.output.extracted_name.split(\" \").slice(1).join(\" \") || null }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        128
+      ],
+      "id": "d2ea7668-b14d-4bec-9aa5-72b8e4a39f80",
+      "name": "Prepare Candidate Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\n// Collect all text fields from the incoming item\nconst text = Object.values(data)\n  .filter(value => typeof value === 'string')\n  .join('\\n');\n\n// Indian phone number patterns\nconst phonePatterns = [\n  /(?:\\+91[\\s-]?)?[6-9]\\d{4}[\\s-]?\\d{5}/g,\n  /(?:\\+91[\\s-]?)?[6-9]\\d{9}/g\n];\n\nlet phone = '';\n\nfor (const pattern of phonePatterns) {\n  const matches = text.match(pattern);\n\n  if (matches && matches.length > 0) {\n    phone = matches[0].trim();\n    break;\n  }\n}\n\n// Return original data + extracted phone\nreturn {\n  json: {\n    ...data,\n    phone_from_email: phone\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -144
+      ],
+      "id": "4ec9ccb2-d126-4ebf-8538-e557d970ce72",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "general-message",
+              "name": "slack_message",
+              "value": "=📩 *New General Email*\n\n*From:* {{ $('Prepare Email Data').item.json.From }}\n*Subject:* \n{{ $('Prepare Email Data').item.json.Subject }}\n*Summary:*\n{{ $json.output.summary }}\n\n*Priority:* {{ $json.output.priority }}\n*Recommended Action:*\n{{ $json.output.recommended_action }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "24ece177-4238-4162-856e-fd57f38efbaa",
+      "name": "Prepare General Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "all-n8n-notifier",
+          "mode": "name"
+        },
+        "text": "={{$json.slack_message}}",
+        "otherOptions": {}
+      },
+      "id": "14110b09-ee3a-4177-bc10-2864c4979110",
+      "name": "Slack - Notify Operations",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        2016,
+        128
+      ],
+      "webhookId": "ff4c819b-e610-42fb-bc98-627b006e612a",
+      "credentials": {
+        "slackApi": {
+          "id": "nWluKnLO2Q8CLqii",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        272,
+        -160
+      ],
+      "id": "5d2d8d30-e51c-4639-bdaa-6e609ce43e07",
+      "name": "Get a message",
+      "webhookId": "a01e4948-4dac-42d0-b900-01aefb3c5450",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2A9LxBFUjv876YwE",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recruitment_message",
+              "name": "slack_message",
+              "value": "=🚨 New Sales Email\nFrom: {{ $json.properties.hs_full_name_or_email.value }}\nEmail: {{ $('Prepare Sales Contact').item.json.From }}\nContact:{{ $('Prepare Sales Contact').item.json.output.properties.extracted_phone }}\nCompany Name: {{ $('Prepare Sales Contact').item.json.output.properties.extracted_company }}\nSubject:{{ $('Prepare Sales Contact').item.json.Subject }} \nPriority: {{ $('Prepare Sales Contact').item.json.output.priority }}\nSummary:{{ $('Prepare Sales Contact').item.json.output.properties.summary }}\nRecommended Action: {{ $('Prepare Sales Contact').item.json.output.recommended_action }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a4e8bc32-7c7b-4c1f-ab8e-81ca23daadf2",
+      "name": "Prepare Recruitment Notification2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1728,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recruitment_message",
+              "name": "slack_message",
+              "value": "=🚨 New Support Ticket\nHubSpot Ticket ID: {{ $json.portalId }}\nCustomer: {{ $('Prepare Support Ticket').item.json.firstname }} {{ $('Prepare Support Ticket').item.json.lastname }}\nCompany: {{ $('Prepare Support Ticket').item.json.output.properties.extracted_company }}\nIssue: {{ $('Prepare Support Ticket').item.json.output.intent }}\nPriority:{{ $('Prepare Support Ticket').item.json.output.priority }}\n\nSummary:\n{{ $('Prepare Support Ticket').item.json.output.properties.summary }}\n\nA new support ticket has been created in HubSpot.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "31b1c936-9c0b-4964-a6c1-eaddadce1ab1",
+      "name": "Prepare Support Notification1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1696,
+        -32
+      ]
+    }
+  ],
+  "pinData": {
+    "Gmail - New Email": [
+      {
+        "json": {
+          "id": "1a08bfe62803796d",
+          "threadId": "1a08bfe62803796d",
+          "snippet": "Hi, We are interested in your AI automation services. Could you send us your pricing and arrange a demo? My name is Harshi Sheth my contact number is +91 6352153750 feel free to reach out to me!!",
+          "payload": {
+            "mimeType": "multipart/alternative"
+          },
+          "sizeEstimate": 9218,
+          "historyId": "1828476",
+          "internalDate": "1789055087000",
+          "labels": [
+            {
+              "id": "INBOX",
+              "name": "INBOX"
+            },
+            {
+              "id": "IMPORTANT",
+              "name": "IMPORTANT"
+            },
+            {
+              "id": "CATEGORY_PERSONAL",
+              "name": "CATEGORY_PERSONAL"
+            },
+            {
+              "id": "UNREAD",
+              "name": "UNREAD"
+            }
+          ],
+          "From": "Harshi <harshisheth2004@gmail.com>",
+          "Subject": "Pricing",
+          "To": "Harshi Sheth <shethharshi04@gmail.com>"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Email Classifier & Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Recruitment Notification": {
+      "main": [
+        [
+          {
+            "node": "Slack - Notify Operations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - New Email": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Email Classifier & Extractor": {
+      "main": [
+        [
+          {
+            "node": "Route by Email Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Classification Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Email Classifier & Extractor",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Email Category": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sales Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Support Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Candidate Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare General Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sales Contact": {
+      "main": [
+        [
+          {
+            "node": "HubSpot - Create or Update Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Support Ticket": {
+      "main": [
+        [
+          {
+            "node": "HubSpot - Create Support Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot - Create or Update Contact": {
+      "main": [
+        [
+          {
+            "node": "Prepare Recruitment Notification2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot - Create Support Ticket": {
+      "main": [
+        [
+          {
+            "node": "Prepare Support Notification1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Candidate Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Recruitment Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Email Classifier & Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare General Notification": {
+      "main": [
+        [
+          {
+            "node": "Slack - Notify Operations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack - Notify Operations": {
+      "main": [
+        []
+      ]
+    },
+    "Prepare Support Notification1": {
+      "main": [
+        [
+          {
+            "node": "Slack - Notify Operations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Recruitment Notification2": {
+      "main": [
+        [
+          {
+            "node": "Slack - Notify Operations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3be6a130-e331-4055-9738-fd54ffe39ae8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b5be0efae45764691aa8125f0a1089b3266afe378d772d1c5a4199f417fb419d"
+  },
+  "id": "YFf2BvlSnhjR2dcn",
+  "tags": []
+}
